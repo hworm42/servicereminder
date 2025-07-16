@@ -1,4 +1,4 @@
 # Ignore specific files
 .env
-*.idx
-*.clinerules
+/.idx/
+.clinerules
