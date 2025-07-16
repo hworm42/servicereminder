@@ -1,5 +1,0 @@
-# Ignore specific files
-.env
-.idx/
-.clinerules
-Project_State.json
