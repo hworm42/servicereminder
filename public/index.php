@@ -1,36 +1,8 @@
 <?php
-session_start();
 require_once __DIR__ . '/../vendor/autoload.php';
-
-use App\Auth;
-use App\Customer;
-use App\Service;
-use App\User;
-use App\Settings;
-use App\Profile;
-
-$auth = new Auth();
-$customerManager = new Customer();
-$serviceManager = new Service();
-$userManager = new User();
-$settingsManager = new Settings();
-$profileManager = new Profile();
-
-$isAuthenticated = $auth->isAuthenticated();
-$userProfile = $isAuthenticated ? $auth->getUser() : null;
-$initialSettings = $settingsManager->getSettings();
-
-// Initial data for Vue.js
-$initialCustomers = [];
-$initialServices = [];
-$initialUsers = [];
-
-if ($isAuthenticated) {
-    $initialCustomers = $customerManager->getAllCustomers();
-    $initialServices = $serviceManager->getAllServices();
-    $initialUsers = $userManager->getAllUsers();
-}
-
+use App\DotEnv;
+(new DotEnv(__DIR__ . '/../.env'))->load();
+$api_url = $_ENV['API_URL'] ?? 'http://localhost:8001/api.php';
 ?>
 <!DOCTYPE html>
 <html lang="tr">
@@ -44,6 +16,9 @@ if ($isAuthenticated) {
     
     <!-- Vue.js 3 CDN -->
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script>
+        const API_URL = '<?php echo $api_url; ?>';
+    </script>
     
     <!-- Google Fonts: Inter -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -498,7 +473,7 @@ if ($isAuthenticated) {
         createApp({
             setup() {
                 // --- AUTHENTICATION STATE ---
-                const isAuthenticated = ref(<?php echo json_encode($isAuthenticated); ?>);
+                const isAuthenticated = ref(false);
                 const authPage = ref('login'); // 'login' or 'register'
                 const authError = ref('');
                 const loginData = ref({ email: '', password: '' });
@@ -523,66 +498,87 @@ if ($isAuthenticated) {
                 const pageTitle = computed(() => pageTitles[activePage.value] || 'Yönetici Paneli');
 
                 // --- USER & PROFILE MANAGEMENT ---
-                const users = ref(<?php echo json_encode($initialUsers); ?>);
-                const userProfile = ref(<?php echo json_encode($userProfile); ?> || { id: null, name: '', email: '', imageUrl: 'https://placehold.co/256x256/EFEFEF/333?text=AU', contact: { phone: '', address: '', website: '' } });
-                const newEmail = ref(''); // This was in original HTML but not used in PHP backend logic for email change
+                const users = ref([
+                    { id: 1, name: 'Admin Kullanıcı', email: 'admin@example.com', password: 'password123', role: 'Admin', contact: { phone: '0500 111 2233', address: 'Admin Sk. No:1', website: 'https://admin.com' } },
+                    { id: 2, name: 'Editör Ayşe', email: 'editor@example.com', password: 'password123', role: 'Editör', contact: { phone: '0500 444 5566', address: 'Editör Cd. No:2', website: 'https://editor.com' } }
+                ]);
+                const userProfile = ref({ id: null, name: '', email: '', imageUrl: 'https://placehold.co/256x256/EFEFEF/333?text=AU', contact: { phone: '', address: '', website: '' } });
+                const newEmail = ref('');
                 const passwordData = ref({ current: '', new: '', confirm: '' });
                 const userSearchQuery = ref('');
                 const userSortKey = ref('name');
                 const userSortOrder = ref('asc');
                 const showUserModal = ref(false);
                 const isUserEditing = ref(false);
-                const defaultUser = { id: null, name: '', email: '', password: '', role: 'Editör', contact: { phone: '', address: '', website: '' }, imageUrl: 'https://placehold.co/256x256/EFEFEF/333?text=AU' };
+                const defaultUser = { id: null, name: '', email: '', password: '', role: 'Editör', contact: { phone: '', address: '', website: '' } };
                 const currentUser = ref({ ...defaultUser });
                 
                 // --- AUTH METHODS ---
-                const generateSpamQuestion = async () => {
-                    const response = await fetch('service/index.php?action=getSpamQuestion');
-                    const data = await response.json();
-                    spamQuestion.value = data;
+                const generateSpamQuestion = () => {
+                    spamQuestion.value = {
+                        num1: Math.floor(Math.random() * 10) + 1,
+                        num2: Math.floor(Math.random() * 10) + 1,
+                    };
                     spamAnswer.value = '';
                 };
                 
-                const handleLogin = async () => {
+                const validateSpam = () => {
+                    const correctAnswer = spamQuestion.value.num1 + spamQuestion.value.num2;
+                    if (parseInt(spamAnswer.value) !== correctAnswer) {
+                        authError.value = 'Spam koruma sorusu yanlış cevaplandı.';
+                        generateSpamQuestion();
+                        return false;
+                    }
+                    return true;
+                };
+
+                const handleLogin = () => {
                     authError.value = '';
-                    const response = await fetch('service/index.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'login', email: loginData.value.email, password: loginData.value.password, spamAnswer: parseInt(spamAnswer.value) })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
+                    if (!validateSpam()) return;
+
+                    const user = users.value.find(u => u.email === loginData.value.email && u.password === loginData.value.password);
+                    if (user) {
                         isAuthenticated.value = true;
-                        // Fetch user info and initial data after successful login
-                        await fetchInitialData();
+                        userProfile.value.id = user.id;
+                        userProfile.value.name = user.name;
+                        userProfile.value.email = user.email;
+                        userProfile.value.contact = { ...user.contact };
                         activePage.value = 'customers';
                     } else {
-                        authError.value = result.message;
+                        authError.value = 'Geçersiz e-posta veya şifre.';
                         generateSpamQuestion();
                     }
                 };
 
-                const handleRegister = async () => {
+                const handleRegister = () => {
                     authError.value = '';
-                    const response = await fetch('service/index.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'register', name: registerData.value.name, email: registerData.value.email, password: registerData.value.password, spamAnswer: parseInt(spamAnswer.value) })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        showSuccess(result.message);
-                        authPage.value = 'login';
-                        registerData.value = { name: '', email: '', password: '' };
-                        generateSpamQuestion();
-                    } else {
-                        authError.value = result.message;
-                        generateSpamQuestion();
+                    if (!settings.value.publicRegistration) {
+                        authError.value = 'Kayıtlar şu anda kapalıdır.';
+                        return;
                     }
+                    if (!validateSpam()) return;
+
+                    if (users.value.some(u => u.email === registerData.value.email)) {
+                        authError.value = 'Bu e-posta adresi zaten kullanılıyor.';
+                        generateSpamQuestion();
+                        return;
+                    }
+                    const newUser = {
+                        id: Date.now(),
+                        name: registerData.value.name,
+                        email: registerData.value.email,
+                        password: registerData.value.password,
+                        role: 'Editör',
+                        contact: { phone: '', address: '', website: '' }
+                    };
+                    users.value.push(newUser);
+                    showSuccess('Kayıt başarılı! Lütfen giriş yapın.');
+                    authPage.value = 'login';
+                    registerData.value = { name: '', email: '', password: '' };
+                    generateSpamQuestion();
                 };
 
-                const handleLogout = async () => {
-                    await fetch('service/index.php?action=logout');
+                const handleLogout = () => {
                     isAuthenticated.value = false;
                     loginData.value = { email: '', password: '' };
                     showProfileDropdown.value = false;
@@ -590,47 +586,30 @@ if ($isAuthenticated) {
                 };
 
 
-                const handleProfilePictureUpload = async (event) => {
+                const handleProfilePictureUpload = (event) => {
                     const file = event.target.files[0];
                     if (file) {
-                        // In a real app, you'd upload this file to a server and get a URL back.
-                        // For now, we'll just use a placeholder or base64 encode it for demo.
-                        // This is a simplified client-side update.
-                        const reader = new FileReader();
-                        reader.onload = async (e) => {
-                            const imageUrl = e.target.result; // Base64 encoded image
-                            const response = await fetch('service/index.php', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ action: 'updateProfilePicture', imageUrl: imageUrl })
-                            });
-                            const result = await response.json();
-                            if (result.success) {
-                                userProfile.value.imageUrl = imageUrl;
-                                showSuccess('Profil resmi güncellendi!');
-                            } else {
-                                authError.value = result.message;
-                            }
-                        };
-                        reader.readAsDataURL(file);
+                        userProfile.value.imageUrl = URL.createObjectURL(file);
+                        showSuccess('Profil resmi güncellendi!');
                     }
                 };
 
-                const saveContactInfo = async () => {
-                    const response = await fetch('service/index.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'updateContactInfo', ...userProfile.value.contact })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        showSuccess(result.message);
-                    } else {
-                        authError.value = result.message;
+                const saveContactInfo = () => {
+                    const userInDb = users.value.find(u => u.id === userProfile.value.id);
+                    if(userInDb) {
+                        userInDb.contact = { ...userProfile.value.contact };
                     }
+                    showSuccess('İletişim bilgileri güncellendi!');
                 };
 
-                const changePassword = async () => {
+                const changeEmail = () => {
+                    if (newEmail.value && newEmail.value !== userProfile.value.email) {
+                        userProfile.value.email = newEmail.value;
+                        newEmail.value = '';
+                        showSuccess('E-posta başarıyla güncellendi!');
+                    }
+                };
+                const changePassword = () => {
                     if (passwordData.value.new !== passwordData.value.confirm) {
                         alert('Yeni şifreler eşleşmiyor!');
                         return;
@@ -639,18 +618,8 @@ if ($isAuthenticated) {
                         alert('Yeni şifre boş olamaz!');
                         return;
                     }
-                    const response = await fetch('service/index.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'changePassword', current: passwordData.value.current, new: passwordData.value.new })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        passwordData.value = { current: '', new: '', confirm: '' };
-                        showSuccess(result.message);
-                    } else {
-                        alert(result.message);
-                    }
+                    passwordData.value = { current: '', new: '', confirm: '' };
+                    showSuccess('Şifre başarıyla değiştirildi!');
                 };
 
                 // --- USER MANAGEMENT LOGIC ---
@@ -684,35 +653,33 @@ if ($isAuthenticated) {
                 const openAddUserModal = () => { isUserEditing.value = false; currentUser.value = { ...defaultUser }; showUserModal.value = true; };
                 const openEditUserModal = (user) => { isUserEditing.value = true; currentUser.value = { ...user, password: '' }; showUserModal.value = true; };
                 const closeUserModal = () => { showUserModal.value = false; };
-                const saveUser = async () => {
-                    const actionType = isUserEditing.value ? 'updateUser' : 'addUser';
-                    const response = await fetch('service/index.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: actionType, ...currentUser.value })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        await fetchUsers(); // Refresh user list
-                        closeUserModal();
-                        showSuccess(result.message);
+                const saveUser = () => {
+                    if (isUserEditing.value) {
+                        const index = users.value.findIndex(u => u.id === currentUser.value.id);
+                        if (index !== -1) {
+                            const oldPassword = users.value[index].password;
+                            users.value[index] = { ...currentUser.value, password: currentUser.value.password || oldPassword };
+                        }
                     } else {
-                        alert(result.message);
+                        currentUser.value.id = Date.now();
+                        users.value.push({ ...currentUser.value });
                     }
+                    closeUserModal();
+                    showSuccess(isUserEditing.value ? 'Kullanıcı güncellendi!' : 'Kullanıcı eklendi!');
                 };
-                const deleteUser = async (id) => {
-                    const response = await fetch(`service/index.php?action=deleteUser&id=${id}`);
-                    const result = await response.json();
-                    if (result.success) {
-                        await fetchUsers(); // Refresh user list
-                        showSuccess(result.message);
-                    } else {
-                        alert(result.message);
+                const deleteUser = (id) => {
+                    if (id === userProfile.value.id) {
+                        alert('Kendinizi silemezsiniz!');
+                        return;
                     }
+                    users.value = users.value.filter(u => u.id !== id);
                 };
 
                 // --- CUSTOMER MANAGEMENT STATE & LOGIC ---
-                const customers = ref(<?php echo json_encode($initialCustomers); ?>);
+                const customers = ref([
+                    { id: 1, name: 'Ahmet Yılmaz', email: 'ahmet.yilmaz@example.com', phone: '0555 123 4567', registrationDate: '2024-01-15', status: 'Aktif' },
+                    { id: 2, name: 'Ayşe Kaya', email: 'ayse.kaya@example.com', phone: '0544 987 6543', registrationDate: '2024-02-20', status: 'Aktif' },
+                ]);
                 const customerSearchQuery = ref('');
                 const customerSortKey = ref('');
                 const customerSortOrder = ref('asc');
@@ -758,38 +725,25 @@ if ($isAuthenticated) {
                 const openAddCustomerModal = () => { isCustomerEditing.value = false; currentCustomer.value = { ...defaultCustomer }; showCustomerModal.value = true; };
                 const openEditCustomerModal = (customer) => { isCustomerEditing.value = true; currentCustomer.value = { ...customer }; showCustomerModal.value = true; };
                 const closeCustomerModal = () => { showCustomerModal.value = false; };
-                const saveCustomer = async () => {
-                    const actionType = isCustomerEditing.value ? 'updateCustomer' : 'addCustomer';
-                    if (!isCustomerEditing.value) {
+                const saveCustomer = () => {
+                    if (isCustomerEditing.value) {
+                        const index = customers.value.findIndex(c => c.id === currentCustomer.value.id);
+                        if (index !== -1) customers.value[index] = { ...currentCustomer.value };
+                    } else {
+                        currentCustomer.value.id = Date.now();
                         currentCustomer.value.registrationDate = new Date().toISOString().split('T')[0];
+                        customers.value.unshift({ ...currentCustomer.value });
                     }
-                    const response = await fetch('service/index.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: actionType, ...currentCustomer.value })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        await fetchCustomers(); // Refresh customer list
-                        closeCustomerModal();
-                        showSuccess(result.message);
-                    } else {
-                        alert(result.message);
-                    }
+                    closeCustomerModal();
+                    showSuccess(isCustomerEditing.value ? 'Müşteri güncellendi!' : 'Müşteri eklendi!');
                 };
-                const deleteCustomer = async (id) => {
-                    const response = await fetch(`service/index.php?action=deleteCustomer&id=${id}`);
-                    const result = await response.json();
-                    if (result.success) {
-                        await fetchCustomers(); // Refresh customer list
-                        showSuccess(result.message);
-                    } else {
-                        alert(result.message);
-                    }
-                };
+                const deleteCustomer = (id) => { customers.value = customers.value.filter(c => c.id !== id); };
 
                 // --- SERVICE MANAGEMENT STATE & LOGIC ---
-                const services = ref(<?php echo json_encode($initialServices); ?>);
+                const services = ref([
+                    { id: 1, name: 'Web Tasarım Paketi', description: 'Modern ve mobil uyumlu web sitesi tasarımı.', status: 'Aktif', customerId: 1, customerName: 'Ahmet Yılmaz', startDate: '2025-01-15', endDate: '2026-01-15', duration: 365 },
+                    { id: 2, name: 'SEO Danışmanlığı', description: 'Arama motoru optimizasyonu.', status: 'Aktif', customerId: 2, customerName: 'Ayşe Kaya', startDate: '2025-07-01', endDate: '2025-07-15', duration: 14 },
+                ]);
                 const serviceSearchQuery = ref('');
                 const serviceSortKey = ref('');
                 const serviceSortOrder = ref('asc');
@@ -858,7 +812,7 @@ if ($isAuthenticated) {
                 const openAddServiceModal = () => { isServiceEditing.value = false; currentService.value = { ...defaultService }; showServiceModal.value = true; };
                 const openEditServiceModal = (service) => { isServiceEditing.value = true; currentService.value = { ...service }; showServiceModal.value = true; };
                 const closeServiceModal = () => { showServiceModal.value = false; };
-                const saveService = async () => {
+                const saveService = () => {
                     const selectedCustomer = customers.value.find(c => c.id === currentService.value.customerId);
                     if (selectedCustomer) currentService.value.customerName = selectedCustomer.name;
                     if (currentService.value.startDate && currentService.value.endDate) {
@@ -866,52 +820,39 @@ if ($isAuthenticated) {
                         const end = new Date(currentService.value.endDate);
                         currentService.value.duration = Math.ceil((end - start) / (1000 * 3600 * 24));
                     }
-                    const actionType = isServiceEditing.value ? 'updateService' : 'addService';
-                    const response = await fetch('service/index.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: actionType, ...currentService.value })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        await fetchServices(); // Refresh service list
-                        closeServiceModal();
-                        showSuccess(result.message);
+                    if (isServiceEditing.value) {
+                        const index = services.value.findIndex(s => s.id === currentService.value.id);
+                        if (index !== -1) services.value[index] = { ...currentService.value };
                     } else {
-                        alert(result.message);
+                        currentService.value.id = Date.now();
+                        services.value.unshift({ ...currentService.value });
                     }
+                    closeServiceModal();
+                    showSuccess(isServiceEditing.value ? 'Hizmet güncellendi!' : 'Hizmet eklendi!');
                 };
-                const deleteService = async (id) => {
-                    const response = await fetch(`service/index.php?action=deleteService&id=${id}`);
-                    const result = await response.json();
-                    if (result.success) {
-                        await fetchServices(); // Refresh service list
-                        showSuccess(result.message);
-                    } else {
-                        alert(result.message);
-                    }
-                };
+                const deleteService = (id) => { services.value = services.value.filter(s => s.id !== id); };
 
                 // --- SETTINGS MANAGEMENT STATE & LOGIC ---
-                const settings = ref(<?php echo json_encode($initialSettings); ?>);
-                const saveSettings = async () => {
-                    const response = await fetch('service/index.php', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ action: 'saveSettings', ...settings.value })
-                    });
-                    const result = await response.json();
-                    if (result.success) {
-                        showSuccess(result.message);
-                    } else {
-                        alert(result.message);
-                    }
+                const settings = ref({
+                    siteTitle: 'Benim Harika Sitem',
+                    publicRegistration: true,
+                    reminderDays: '30,15,7',
+                    emailTemplate: 'Sayın {{musteri_adi}},\n\n{{hizmet_adi}} adlı hizmetinizin sona ermesine {{kalan_gun}} gün kalmıştır.\n\nHizmetinizi yenilemek için bizimle iletişime geçebilirsiniz.\n\nTelefon: {{iletisim_telefon}}\nWeb: {{iletisim_website}}',
+                    smtp: { host: 'smtp.example.com', port: 587, username: 'user@example.com', password: '', security: 'starttls' }
+                });
+                const saveSettings = () => {
+                    console.log('Ayarlar kaydediliyor:', JSON.parse(JSON.stringify(settings.value)));
+                    showSuccess('Ayarlar başarıyla kaydedildi!');
                 };
 
                 // --- DATA EXPORT/IMPORT ---
-                const exportData = async (format) => {
-                    const response = await fetch('service/index.php?action=exportData');
-                    const data = await response.json();
+                const exportData = (format) => {
+                    const data = {
+                        users: users.value,
+                        customers: customers.value,
+                        services: services.value,
+                        settings: settings.value
+                    };
 
                     if (format === 'json') {
                         const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
@@ -921,7 +862,7 @@ if ($isAuthenticated) {
                         link.click();
                     } else if (format === 'csv') {
                         // Export Customers
-                        const customerCSV = convertToCSV(data.customers);
+                        const customerCSV = convertToCSV(customers.value);
                         const customerBlob = new Blob([customerCSV], { type: 'text/csv;charset=utf-8;' });
                         const customerLink = document.createElement("a");
                         customerLink.href = URL.createObjectURL(customerBlob);
@@ -929,20 +870,12 @@ if ($isAuthenticated) {
                         customerLink.click();
 
                         // Export Services
-                        const serviceCSV = convertToCSV(data.services);
+                        const serviceCSV = convertToCSV(services.value);
                         const serviceBlob = new Blob([serviceCSV], { type: 'text/csv;charset=utf-8;' });
                         const serviceLink = document.createElement("a");
                         serviceLink.href = URL.createObjectURL(serviceBlob);
                         serviceLink.download = "services.csv";
                         serviceLink.click();
-
-                        // Export Users (simplified, might need more robust handling for sensitive data)
-                        const userCSV = convertToCSV(data.users.map(u => ({ id: u.id, name: u.name, email: u.email, role: u.role })));
-                        const userBlob = new Blob([userCSV], { type: 'text/csv;charset=utf-8;' });
-                        const userLink = document.createElement("a");
-                        userLink.href = URL.createObjectURL(userBlob);
-                        userLink.download = "users.csv";
-                        userLink.click();
                     }
                 };
 
@@ -959,21 +892,14 @@ if ($isAuthenticated) {
                     if (!file) return;
 
                     const reader = new FileReader();
-                    reader.onload = async (e) => {
+                    reader.onload = (e) => {
                         try {
                             const data = JSON.parse(e.target.result);
-                            const response = await fetch('service/index.php', {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ action: 'importData', ...data })
-                            });
-                            const result = await response.json();
-                            if (result.success) {
-                                showSuccess(result.message);
-                                await fetchInitialData(); // Re-fetch all data after import
-                            } else {
-                                alert(result.message);
-                            }
+                            if (data.users) users.value = data.users;
+                            if (data.customers) customers.value = data.customers;
+                            if (data.services) services.value = data.services;
+                            if (data.settings) settings.value = data.settings;
+                            showSuccess('Veriler başarıyla içe aktarıldı!');
                         } catch (error) {
                             alert('Geçersiz JSON dosyası!');
                             console.error("JSON parse error:", error);
@@ -1003,44 +929,8 @@ if ($isAuthenticated) {
                 // --- PAGE NAVIGATION ---
                 const setActivePage = (page) => { activePage.value = page; };
 
-                // --- FETCH INITIAL DATA ---
-                const fetchInitialData = async () => {
-                    if (isAuthenticated.value) {
-                        const [customersRes, servicesRes, usersRes, userInfoRes, settingsRes] = await Promise.all([
-                            fetch('service/index.php?action=getCustomers'),
-                            fetch('service/index.php?action=getServices'),
-                            fetch('service/index.php?action=getUsers'),
-                            fetch('service/index.php?action=getUserInfo'),
-                            fetch('service/index.php?action=getSettings')
-                        ]);
-                        customers.value = await customersRes.json();
-                        services.value = await servicesRes.json();
-                        users.value = await usersRes.json();
-                        userProfile.value = await userInfoRes.json();
-                        settings.value = await settingsRes.json();
-                    }
-                };
-
-                const fetchCustomers = async () => {
-                    const response = await fetch('service/index.php?action=getCustomers');
-                    customers.value = await response.json();
-                };
-
-                const fetchServices = async () => {
-                    const response = await fetch('service/index.php?action=getServices');
-                    services.value = await response.json();
-                };
-
-                const fetchUsers = async () => {
-                    const response = await fetch('service/index.php?action=getUsers');
-                    users.value = await response.json();
-                };
-
-
                 onMounted(() => {
-                    if (!isAuthenticated.value) {
-                        generateSpamQuestion();
-                    }
+                    generateSpamQuestion();
                 });
 
                 return {
@@ -1048,9 +938,9 @@ if ($isAuthenticated) {
                     activePage, setActivePage, pageTitle,
                     customers, customerSearchQuery, sortedCustomers, customerSortKey, customerSortOrder, sortCustomersBy, showCustomerModal, isCustomerEditing, currentCustomer, openAddCustomerModal, openEditCustomerModal, closeCustomerModal, saveCustomer, deleteCustomer,
                     services, serviceSearchQuery, sortedServices, serviceSortKey, serviceSortOrder, sortServicesBy, showServiceModal, isServiceEditing, currentService, openAddServiceModal, openEditServiceModal, closeServiceModal, saveService, deleteService,
-                    users, userSearchQuery, sortedUsers, userSortKey, userSortOrder, sortUserModal, isUserEditing, currentUser, openAddUserModal, openEditUserModal, closeUserModal, saveUser, deleteUser,
+                    users, userSearchQuery, sortedUsers, userSortKey, userSortOrder, sortUsersBy, showUserModal, isUserEditing, currentUser, openAddUserModal, openEditUserModal, closeUserModal, saveUser, deleteUser,
                     settings, saveSettings, saveContactInfo,
-                    userProfile, newEmail, passwordData, handleProfilePictureUpload, changePassword,
+                    userProfile, newEmail, passwordData, handleProfilePictureUpload, changeEmail, changePassword,
                     showSuccessMessage, successMessageText, showProfileDropdown,
                     getRemainingDaysColor, formatDate, isSidebarOpen, getSortIcon,
                     exportData, importData

@@ -1,7 +1,7 @@
 {
-  "proje_adi": "Yönetici_Paneli_PHP",
-  "proje_hedefi": "Vanilla PHP kullanarak 'sample/index.html' dosyasındaki Yönetici Paneli projesini yeniden kodla ve 'service/' klasörü içine yerleştir. Veritabanı olarak SQLite kullan.",
-  "teknoloji_yigini": ["Vanilla PHP 8.1", "Apache", "SQLite", "PHPUnit", "Docker"],
+  "proje_adi": "Yönetici_Paneli_API",
+  "proje_hedefi": "Vanilla PHP ve SQLite kullanarak 'public/index.html' arayüzü için bir backend API sunucusu yazmak, bu sunucuyu frontend ile bağlamak ve bağlantıyı test ederek doğrulamak.",
+  "teknoloji_yigini": ["Vanilla PHP 8.1", "SQLite", "PHPUnit", "Apache"],
   "veritabani_semasi": {
     "users": [
       "id INTEGER PRIMARY KEY AUTOINCREMENT",
@@ -11,13 +11,12 @@
       "role TEXT NOT NULL DEFAULT 'Editör'",
       "phone TEXT",
       "address TEXT",
-      "website TEXT",
-      "imageUrl TEXT"
+      "website TEXT"
     ],
     "customers": [
       "id INTEGER PRIMARY KEY AUTOINCREMENT",
       "name TEXT NOT NULL",
-      "email TEXT NOT NULL",
+      "email TEXT NOT NULL UNIQUE",
       "phone TEXT",
       "registrationDate TEXT NOT NULL",
       "status TEXT NOT NULL"
@@ -27,18 +26,18 @@
       "name TEXT NOT NULL",
       "description TEXT",
       "status TEXT NOT NULL",
-      "customerId INTEGER NOT NULL",
-      "customerName TEXT NOT NULL",
-      "startDate TEXT NOT NULL",
-      "endDate TEXT NOT NULL",
-      "duration INTEGER"
+      "customer_id INTEGER NOT NULL",
+      "customer_name TEXT NOT NULL",
+      "start_date TEXT NOT NULL",
+      "end_date TEXT NOT NULL",
+      "duration INTEGER NOT NULL"
     ],
     "settings": [
       "id INTEGER PRIMARY KEY AUTOINCREMENT",
-      "siteTitle TEXT",
-      "publicRegistration INTEGER",
-      "reminderDays TEXT",
-      "emailTemplate TEXT",
+      "site_title TEXT",
+      "public_registration INTEGER",
+      "reminder_days TEXT",
+      "email_template TEXT",
       "smtp_host TEXT",
       "smtp_port INTEGER",
       "smtp_username TEXT",
@@ -47,31 +46,17 @@
     ]
   },
   "gorev_listesi (Backlog)": [
-    {"id": "T01", "sprint": 1, "status": "completed", "desc": "Ortam değişkenlerine (.env) göre SQLite bağlantısı kurabilen bir veritabanı soyutlama sınıfı (Database Abstraction Layer) oluştur."},
-    {"id": "T02", "sprint": 1, "status": "completed", "desc": "Kullanıcı kimlik doğrulama (giriş/kayıt) mantığını PHP'ye taşı."},
-    {"id": "T03", "sprint": 1, "status": "completed", "desc": "Müşteri yönetimi (CRUD) işlevlerini PHP'ye taşı."},
-    {"id": "T04", "sprint": 2, "status": "completed", "desc": "Hizmet yönetimi (CRUD) işlevlerini PHP'ye taşı."},
-    {"id": "T05", "sprint": 2, "status": "completed", "desc": "Kullanıcı yönetimi (CRUD) işlevlerini PHP'ye taşı."},
-    {"id": "T06", "sprint": 2, "status": "completed", "desc": "Ayarlar yönetimi işlevlerini PHP'ye taşı."},
-    {"id": "T07", "sprint": 3, "status": "completed", "desc": "Profil yönetimi işlevlerini PHP'ye taşı."},
-    {"id": "T08", "sprint": 3, "status": "completed", "desc": "HTML/CSS yapısını PHP şablonlarına dönüştür ve dinamik verileri entegre et."},
-    {"id": "T09", "sprint": 3, "status": "completed", "desc": "Veri dışa/içe aktarma işlevlerini PHP'ye taşı."}
+    {"id": "T01", "sprint": 1, "status": "completed", "desc": "Ortam değişkenlerine (.env) göre SQLite veya MySQL bağlantısı kurabilen bir veritabanı soyutlama sınıfı (Database Abstraction Layer) oluştur."},
+    {"id": "T02", "sprint": 1, "status": "completed", "desc": "Kullanıcı kimlik doğrulama (login/register) API endpoint'lerini oluştur."},
+    {"id": "T03", "sprint": 1, "status": "completed", "desc": "Müşteri yönetimi (CRUD) API endpoint'lerini oluştur."},
+    {"id": "T04", "sprint": 1, "status": "completed", "desc": "Hizmet yönetimi (CRUD) API endpoint'lerini oluştur."},
+    {"id": "T05", "sprint": 1, "status": "completed", "desc": "Kullanıcı yönetimi (CRUD) API endpoint'lerini oluştur."},
+    {"id": "T06", "sprint": 1, "status": "completed", "desc": "Ayarlar yönetimi (GET/UPDATE) API endpoint'lerini oluştur."},
+    {"id": "T07", "sprint": 1, "status": "pending", "desc": "'public/index.html' dosyasındaki Vue.js uygulamasını yeni API endpoint'lerine bağlanacak şekilde güncelle."},
+    {"id": "T08", "sprint": 1, "status": "pending", "desc": "API ve frontend bağlantısını test et ve doğrula."}
   ],
-  "sprint_gecmisi": [
-    {"sprint": 1, "gorevler": ["T01", "T02", "T03"], "tamamlanma_tarihi": "2025-07-15T15:39:21Z"},
-    {"sprint": 2, "gorevler": ["T04", "T05", "T06"], "tamamlanma_tarihi": "2025-07-15T15:45:39Z"},
-    {"sprint": 3, "gorevler": ["T07", "T08", "T09"], "tamamlanma_tarihi": "2025-07-15T16:07:00Z"}
-  ],
+  "sprint_gecmisi": [],
   "sistem_loglari": [
-    {"timestamp": "2025-07-15T15:24:48Z", "agent": "Orkestratör AI", "action": "Proje başlatıldı."},
-    {"timestamp": "2025-07-15T15:35:14Z", "agent": "Orkestratör AI", "action": "Görev T01 tamamlandı: Veritabanı soyutlama sınıfı oluşturuldu ve tablolar başlatıldı."},
-    {"timestamp": "2025-07-15T15:37:22Z", "agent": "Orkestratör AI", "action": "Görev T02 tamamlandı: Kullanıcı kimlik doğrulama mantığı PHP'ye taşındı."},
-    {"timestamp": "2025-07-15T15:39:21Z", "agent": "Orkestratör AI", "action": "Görev T03 tamamlandı: Müşteri yönetimi (CRUD) işlevleri PHP'ye taşındı."},
-    {"timestamp": "2025-07-15T15:41:24Z", "agent": "Orkestratör AI", "action": "Görev T04 tamamlandı: Hizmet yönetimi (CRUD) işlevleri PHP'ye taşındı."},
-    {"timestamp": "2025-07-15T15:43:25Z", "agent": "Orkestratör AI", "action": "Görev T05 tamamlandı: Kullanıcı yönetimi (CRUD) işlevleri PHP'ye taşındı."},
-    {"timestamp": "2025-07-15T15:45:39Z", "agent": "Orkestratör AI", "action": "Görev T06 tamamlandı: Ayarlar yönetimi işlevleri PHP'ye taşındı."},
-    {"timestamp": "2025-07-15T15:47:36Z", "agent": "Orkestratör AI", "action": "Görev T07 tamamlandı: Profil yönetimi işlevleri PHP'ye taşındı."},
-    {"timestamp": "2025-07-15T15:55:14Z", "agent": "Orkestratör AI", "action": "Görev T08 tamamlandı: HTML/CSS yapısı PHP şablonlarına dönüştürüldü ve dinamik veriler entegre edildi."},
-    {"timestamp": "2025-07-15T16:07:00Z", "agent": "Orkestratör AI", "action": "Görev T09 tamamlandı: Veri dışa/içe aktarma işlevleri PHP'ye taşındı."}
+    {"timestamp": "2025-07-15T15:00:00Z", "agent": "Orkestratör AI", "action": "Proje başlatıldı."}
   ]
 }
